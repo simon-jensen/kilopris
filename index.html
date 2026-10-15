@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="da"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kilopris</title>
+<meta name="description" content="Skriv pris og vægt eller rumfang, og se kilo- eller literprisen med det samme. Sammenlign flere varer.">
+<meta name="theme-color" content="#f5f3ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151a17" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-title" content="Kilopris">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+:root{--bg:#f5f3ec;--kort:#fff;--ink:#1d2420;--mute:#5d665f;--linje:#d9d5c8;--felt:#fbfaf6;
+ --accent:#2f6b4f;--accent-ink:#fff;--god:#245c41;--god-bg:#e1eee5;--fejl:#a3401c;--skygge:0 1px 2px rgba(0,0,0,.05),0 3px 10px rgba(0,0,0,.04);}
+@media (prefers-color-scheme: dark){
+ :root{--bg:#151a17;--kort:#1e2420;--ink:#e9ece6;--mute:#a3aca4;--linje:#353d37;--felt:#171c19;
+  --accent:#7cc19b;--accent-ink:#0f1a14;--god:#8fd0ab;--god-bg:#203328;--fejl:#ef9a72;--skygge:none;}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+main{max-width:520px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
+h1{font-size:1.35rem;margin:2px 0 2px;letter-spacing:-.01em}
+.under{color:var(--mute);margin:0 0 14px;font-size:.95rem}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Faner */
+.faner{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--linje);margin-bottom:14px}
+.faner button{border:0;border-radius:9px;padding:10px 8px;background:transparent;font-weight:600;color:var(--mute)}
+.faner button[aria-selected=true]{background:var(--kort);color:var(--ink);box-shadow:var(--skygge)}
+
+/* Varekort */
+#varer{display:grid;gap:12px}
+.vare{background:var(--kort);border:1px solid var(--linje);border-radius:14px;padding:12px 14px 14px;box-shadow:var(--skygge)}
+.vare.billigst{border-color:var(--god);box-shadow:0 0 0 1px var(--god) inset,var(--skygge)}
+.top{display:flex;align-items:center;justify-content:space-between;min-height:28px;margin-bottom:6px}
+.top h2{font-size:.85rem;font-weight:600;color:var(--mute);margin:0;text-transform:uppercase;letter-spacing:.04em}
+.fjern{border:0;background:transparent;color:var(--mute);width:36px;height:36px;margin:-6px -8px -6px 0;border-radius:8px;font-size:1.1rem}
+.fjern:hover{background:var(--felt)}
+.felt{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:.8rem;color:var(--mute)}
+input{font:inherit;font-size:1.25rem;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--felt);border:1px solid var(--linje);border-radius:10px;padding:9px 11px;width:100%;min-width:0}
+input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+input[aria-invalid=true]{border-color:var(--fejl)}
+input::placeholder{color:var(--mute);opacity:.55}
+.boks{position:relative;display:block}
+.boks input{padding-right:42px}
+.boks .suffix{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
+.raekke{display:grid;grid-template-columns:minmax(0,1fr) auto 18px 58px;gap:6px;align-items:end;margin-top:10px}
+.gange{text-align:center;color:var(--mute);padding-bottom:12px}
+.enheder{display:flex;border:1px solid var(--linje);border-radius:10px;overflow:hidden;height:47px}
+.enheder button{border:0;background:var(--felt);min-width:42px;padding:0 8px;font-weight:600;color:var(--mute)}
+.enheder button+button{border-left:1px solid var(--linje)}
+.enheder button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+
+/* Resultat */
+.res{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--linje)}
+.tal{font-size:2rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.tal small{font-size:1rem;font-weight:500;color:var(--mute);letter-spacing:0}
+.tom .tal{color:var(--mute);opacity:.6}
+.sub{font-size:.85rem;color:var(--mute);margin-top:3px;font-variant-numeric:tabular-nums}
+.sub span{white-space:nowrap}
+.maerke{flex:none;font-size:.8rem;font-weight:600;padding:4px 9px;border-radius:999px;background:var(--felt);color:var(--mute);border:1px solid var(--linje);white-space:nowrap}
+.billigst .maerke{background:var(--god-bg);color:var(--god);border-color:transparent}
+.maerke:empty{display:none}
+
+/* Knapper under kortene */
+.handlinger{display:flex;gap:10px;margin-top:14px}
+.tilfoej{flex:1;border:1px dashed var(--accent);background:transparent;color:var(--accent);border-radius:12px;padding:12px;font-weight:600}
+.ryd{border:1px solid var(--linje);background:var(--kort);border-radius:12px;padding:12px 16px;color:var(--mute)}
+footer{margin-top:22px;font-size:.82rem;color:var(--mute)}
+footer p{margin:0 0 6px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Kilopris</h1>
+  <p class="under">Skriv pris og mængde – prisen pr. kilo eller liter står nedenunder.</p>
+
+  <div class="faner" role="tablist" aria-label="Hvad skal prisen regnes pr.?">
+    <button type="button" role="tab" id="fane-vaegt" data-fane="vaegt" aria-controls="varer">Kilopris</button>
+    <button type="button" role="tab" id="fane-vol" data-fane="vol" aria-controls="varer">Literpris</button>
+  </div>
+
+  <div id="varer" role="tabpanel"></div>
+
+  <div class="handlinger">
+    <button type="button" class="tilfoej" id="tilfoej">+ Sammenlign med en vare til</button>
+    <button type="button" class="ryd" id="ryd">Ryd</button>
+  </div>
+
+  <footer>
+    <p>Alt regnes i din browser; intet sendes nogen steder.</p>
+    <p>Tip: Føj siden til hjemmeskærmen (Safari: Del → Føj til hjemmeskærm), så åbner den som en app og virker også uden net.</p>
+  </footer>
+</main>
+
+<template id="skabelon">
+  <section class="vare">
+    <div class="top"><h2></h2><button type="button" class="fjern">✕</button></div>
+    <label class="felt"><span class="lbl">Pris</span>
+      <span class="boks"><input data-felt="pris" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="0,00"><span class="suffix">kr.</span></span></label>
+    <div class="raekke">
+      <label class="felt"><span class="lbl">Mængde</span>
+        <input data-felt="maengde" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="0"></label>
+      <div class="enheder" role="group" aria-label="Enhed"></div>
+      <span class="gange" aria-hidden="true">×</span>
+      <label class="felt"><span class="lbl">Stk.</span>
+        <input data-felt="stk" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="1"></label>
+    </div>
+    <div class="res" aria-live="polite">
+      <div><div class="tal"></div><div class="sub"></div></div>
+      <span class="maerke"></span>
+    </div>
+  </section>
+</template>
+
+<script>
+'use strict';
+// Enheder: faktor = hvor mange kg/l én enhed er. 'lille' er den ekstra linje under resultatet.
+const TYPER = {
+  vaegt: {enheder: {g: 0.001, kg: 1}, std: 'g', basis: 'kg', lille: ['100 g', 0.1], hash: '#kilo'},
+  vol:   {enheder: {ml: 0.001, cl: 0.01, l: 1}, std: 'ml', basis: 'l', lille: ['100 ml', 0.1], hash: '#liter'},
+};
+const kr = new Intl.NumberFormat('da-DK', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const mgd = new Intl.NumberFormat('da-DK', {maximumFractionDigits: 3});
+const pct = new Intl.NumberFormat('da-DK', {maximumFractionDigits: 0});
+
+const liste = document.getElementById('varer');
+const skabelon = document.getElementById('skabelon');
+
+// Læser et tal, som det skrives på dansk eller engelsk: "12,95", "12.95", "1.299,00", "24,-".
+function tal(s) {
+  s = String(s).replace(/\s/g, '').replace(/kr\.?$/i, '').replace(/,-$/, '');
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+  else s = s.replace(',', '.');
+  return /^(\d+\.?\d*|\.\d+)$/.test(s) ? parseFloat(s) : NaN;
+}
+
+function tom(type, enhed) { return {pris: '', maengde: '', stk: '', enhed: enhed || TYPER[type].std}; }
+
+// Tallene gemmes kun i fanen (sessionStorage), så de overlever et skift til en anden app,
+// men ikke til næste indkøbstur. Den valgte fane huskes længere.
+function hent() {
+  let gemt = null, fane = 'vaegt';
+  try { gemt = JSON.parse(sessionStorage.getItem('kilopris')); } catch (e) {}
+  try { const f = localStorage.getItem('kilopris-fane'); if (f in TYPER) fane = f; } catch (e) {}
+  for (const k in TYPER) if (location.hash === TYPER[k].hash) fane = k;
+  const t = {fane};
+  for (const k in TYPER) {
+    const poster = gemt && Array.isArray(gemt[k]) && gemt[k].length ? gemt[k] : [{}];
+    t[k] = poster.map(v => {
+      const ny = Object.assign(tom(k), v);
+      if (!(ny.enhed in TYPER[k].enheder)) ny.enhed = TYPER[k].std;
+      return ny;
+    });
+  }
+  return t;
+}
+function gem() {
+  try { sessionStorage.setItem('kilopris', JSON.stringify({vaegt: tilstand.vaegt, vol: tilstand.vol})); } catch (e) {}
+  try { localStorage.setItem('kilopris-fane', tilstand.fane); } catch (e) {}
+}
+let tilstand = hent();
+
+// Pris pr. kg/l, eller null hvis feltet mangler noget.
+function beregn(v, type) {
+  const p = tal(v.pris), m = tal(v.maengde), s = v.stk.trim() === '' ? 1 : tal(v.stk);
+  if (!(p > 0) || !(m > 0) || !(s > 0)) return null;
+  return rund(p / (m * s * TYPER[type].enheder[v.enhed]));
+}
+// Fjerner kommatalsstøj, så fx 24,95 kr. / 400 g = 62,375 rundes op til 62,38 som på hylden.
+function rund(x) { return Math.round(x * 1e6) / 1e6; }
+
+function kort(v, i, type) {
+  const el = skabelon.content.firstElementChild.cloneNode(true);
+  el.dataset.i = i;
+  el.querySelector('h2').textContent = 'Vare ' + (i + 1);
+  const fjern = el.querySelector('.fjern');
+  fjern.setAttribute('aria-label', 'Fjern vare ' + (i + 1));
+  fjern.hidden = tilstand[type].length < 2;
+  for (const inp of el.querySelectorAll('input')) inp.value = v[inp.dataset.felt];
+  const enh = el.querySelector('.enheder');
+  for (const e in TYPER[type].enheder) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.enhed = e; b.textContent = e;
+    b.setAttribute('aria-pressed', e === v.enhed);
+    enh.append(b);
+  }
+  return el;
+}
+
+function tegn() {
+  const type = tilstand.fane;
+  for (const b of document.querySelectorAll('[role=tab]')) {
+    const valgt = b.dataset.fane === type;
+    b.setAttribute('aria-selected', valgt);
+    b.tabIndex = valgt ? 0 : -1;
+  }
+  liste.setAttribute('aria-labelledby', 'fane-' + type);
+  liste.replaceChildren(...tilstand[type].map((v, i) => kort(v, i, type)));
+  opdater();
+}
+
+function opdater() {
+  const type = tilstand.fane, T = TYPER[type], varer = tilstand[type];
+  const priser = varer.map(v => beregn(v, type));
+  const gyldige = priser.filter(x => x !== null);
+  const min = gyldige.length >= 2 ? Math.min(...gyldige) : null;
+  liste.querySelectorAll('.vare').forEach((el, i) => {
+    const v = varer[i], x = priser[i];
+    for (const inp of el.querySelectorAll('input')) {
+      const s = inp.value.trim();
+      inp.setAttribute('aria-invalid', s !== '' && !(tal(s) > 0));
+    }
+    el.classList.toggle('tom', x === null);
+    const talEl = el.querySelector('.tal'), sub = el.querySelector('.sub'), maerke = el.querySelector('.maerke');
+    const enh = document.createElement('small');
+    enh.textContent = 'kr. pr. ' + T.basis;
+    talEl.replaceChildren(x === null ? '–' : kr.format(x), ' ', enh);
+    if (x === null) {
+      sub.textContent = 'Skriv pris og mængde';
+    } else {
+      const dele = [kr.format(rund(x * T.lille[1])) + ' kr. pr. ' + T.lille[0]];
+      const stk = v.stk.trim() === '' ? 1 : tal(v.stk);
+      if (stk !== 1) dele.unshift('I alt ' + mgd.format(tal(v.maengde) * stk * T.enheder[v.enhed]) + ' ' + T.basis);
+      sub.replaceChildren(...dele.flatMap((d, j) => {
+        const span = document.createElement('span');
+        span.textContent = d;
+        return j ? [' · ', span] : [span];
+      }));
+    }
+    let billigst = false, tekst = '';
+    if (min !== null && x !== null) {
+      const forskel = (x / min - 1) * 100;
+      billigst = forskel < 0.5;
+      tekst = billigst ? 'Billigst' : '+' + pct.format(Math.max(1, forskel)) + ' % dyrere';
+    }
+    el.classList.toggle('billigst', billigst);
+    maerke.textContent = tekst;
+  });
+}
+
+function felt(i, navn) { return liste.querySelector(`.vare[data-i="${i}"] [data-felt="${navn}"]`); }
+
+liste.addEventListener('input', e => {
+  const navn = e.target.dataset.felt;
+  if (!navn) return;
+  tilstand[tilstand.fane][+e.target.closest('.vare').dataset.i][navn] = e.target.value;
+  gem(); opdater();
+});
+
+liste.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const varer = tilstand[tilstand.fane], i = +b.closest('.vare').dataset.i;
+  if (b.dataset.enhed) {
+    varer[i].enhed = b.dataset.enhed;
+    for (const k of b.parentElement.children) k.setAttribute('aria-pressed', k === b);
+    gem(); opdater();
+  } else if (b.classList.contains('fjern')) {
+    varer.splice(i, 1);
+    gem(); tegn();
+    felt(Math.min(i, varer.length - 1), 'pris').focus();
+  }
+});
+
+// Enter i prisfeltet hopper til mængden; Enter i de andre lukker tastaturet.
+liste.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.dataset.felt) return;
+  e.preventDefault();
+  if (e.target.dataset.felt === 'pris') felt(e.target.closest('.vare').dataset.i, 'maengde').focus();
+  else e.target.blur();
+});
+
+document.getElementById('tilfoej').addEventListener('click', () => {
+  const varer = tilstand[tilstand.fane];
+  varer.push(tom(tilstand.fane, varer[varer.length - 1].enhed));
+  gem(); tegn();
+  const ny = felt(varer.length - 1, 'pris');
+  ny.focus();
+  ny.closest('.vare').scrollIntoView({block: 'nearest', behavior: 'smooth'});
+});
+
+document.getElementById('ryd').addEventListener('click', () => {
+  const type = tilstand.fane;
+  tilstand[type] = [tom(type, tilstand[type][0].enhed)];
+  gem(); tegn();
+  felt(0, 'pris').focus();
+});
+
+function skiftFane(type) {
+  if (type === tilstand.fane) return;
+  tilstand.fane = type;
+  history.replaceState(null, '', TYPER[type].hash);
+  gem(); tegn();
+}
+const faner = [...document.querySelectorAll('[role=tab]')];
+for (const b of faner) {
+  b.addEventListener('click', () => skiftFane(b.dataset.fane));
+  b.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const n = faner[(faner.indexOf(b) + 1) % faner.length];
+    skiftFane(n.dataset.fane); n.focus();
+  });
+}
+window.addEventListener('hashchange', () => {
+  for (const k in TYPER) if (location.hash === TYPER[k].hash) skiftFane(k);
+});
+
+tegn();
+
+if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
