@@ -1,12 +1,14 @@
-// Service worker: siden virker uden net, når den har været åbnet én gang.
-// Net først (så en ny udgave vises med det samme), cachen hvis nettet svigter eller er for langsomt.
-const CACHE = 'kilopris-1';
+// Service worker: siden skal virke i en butik uden net (eller med én streg dækning).
+// Cache først: alt vises straks fra telefonens egen kopi, og nettet bruges kun i baggrunden
+// til at hente en nyere udgave, som så vises næste gang siden åbnes.
+const CACHE = 'kilopris-2';
 const FILER = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
-const VENT_MS = 3000;   // så længe venter vi på nettet, før cachen bruges (dårlig dækning i butikken)
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILER)));
-  self.skipWaiting();
+  // cache: 'reload' går uden om browserens HTTP-cache, så kopien er den nyeste udgave.
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(FILER.map(f => new Request(f, {cache: 'reload'}))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -18,14 +20,17 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-  const net = fetch(req).then(svar => {
-    if (svar.ok) { const kopi = svar.clone(); caches.open(CACHE).then(c => c.put(req, kopi)); }
-    return svar;
+  // Hent en frisk kopi i baggrunden. 'no-cache' spørger serveren (GitHub Pages lader ellers
+  // browseren genbruge en gammel kopi i 10 minutter). Kun hele, gode svar gemmes, aldrig fx
+  // en omdirigering til et butiks-wifis loginside.
+  const frisk = fetch(req.url, {cache: 'no-cache'}).then(svar => {
+    if (svar.ok && svar.type === 'basic' && !svar.redirected) {
+      const kopi = svar.clone();
+      e.waitUntil(caches.open(CACHE).then(c => c.put(req, kopi)));
+    }
   });
-  e.waitUntil(net.catch(() => {}));
-  const fraCache = () => caches.match(req, {ignoreSearch: true})
-    .then(m => m || (req.mode === 'navigate' ? caches.match('./') : null))
-    .then(m => m || net);
-  const timeout = new Promise((_, nej) => setTimeout(() => nej(new Error('timeout')), VENT_MS));
-  e.respondWith(Promise.race([net, timeout]).catch(fraCache));
+  e.waitUntil(frisk.catch(() => {}));
+  e.respondWith(caches.match(req, {ignoreSearch: true})
+    .then(m => m || (req.mode === 'navigate' ? caches.match('./') : undefined))
+    .then(m => m || fetch(req)));
 });

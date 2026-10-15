@@ -32,6 +32,10 @@ Ret testen med, når du ændrer tekster eller beregninger.
 
 ## 3. Service worker
 
-`sw.js` er “net først” med cache som reserve, så ændringer kræver ikke et
-versionsbump. Tilføjes en fil, siden henter, skal den med i `FILER`. Bump
-`CACHE` (fx `kilopris-2`), hvis en fil fjernes eller omdøbes.
+Siden skal virke i en butik uden net. `sw.js` er derfor “cache først”: siden
+vises altid straks fra telefonens kopi, og en ny udgave hentes i baggrunden og
+vises ved næste åbning. Ændringer kræver ikke et versionsbump. Gør aldrig
+siden afhængig af nettet (ingen eksterne filer, intet “net først” med
+ventetid). Tilføjes en fil, siden henter, skal den med i `FILER`. Bump `CACHE`
+(fx `kilopris-3`), hvis en fil fjernes eller omdøbes. Røgtesten tjekker, at
+siden åbner uden net og ved et net, der aldrig svarer.

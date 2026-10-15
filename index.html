@@ -70,6 +70,7 @@ input::placeholder{color:var(--mute);opacity:.55}
 .ryd{border:1px solid var(--linje);background:var(--kort);border-radius:12px;padding:12px 16px;color:var(--mute)}
 footer{margin-top:22px;font-size:.82rem;color:var(--mute)}
 footer p{margin:0 0 6px}
+#offline.klar{color:var(--god);font-weight:600}
 </style>
 </head>
 <body>
@@ -90,8 +91,9 @@ footer p{margin:0 0 6px}
   </div>
 
   <footer>
+    <p id="offline" hidden></p>
     <p>Alt regnes i din browser; intet sendes nogen steder.</p>
-    <p>Tip: Føj siden til hjemmeskærmen (Safari: Del → Føj til hjemmeskærm), så åbner den som en app og virker også uden net.</p>
+    <p>Tip: Læg siden på hjemmeskærmen (Safari: Del → Føj til hjemmeskærm) og åbn den derfra én gang, mens du har net. Så åbner den som en app og virker også i en butik uden net.</p>
   </footer>
 </main>
 
@@ -310,7 +312,21 @@ window.addEventListener('hashchange', () => {
 
 tegn();
 
-if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js');
+// Service workeren gemmer siden på telefonen; linjen i sidefoden viser, når den er klar til brug uden net.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  const status = document.getElementById('offline');
+  status.textContent = 'Gør siden klar til brug uden net …';
+  status.hidden = false;
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.ready
+    .then(() => caches.match('./'))
+    .then(m => {
+      if (!m) return;
+      status.textContent = '✓ Gemt på telefonen – virker også uden net.';
+      status.classList.add('klar');
+    })
+    .catch(() => {});
+}
 </script>
 </body>
 </html>

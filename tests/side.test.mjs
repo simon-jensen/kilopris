@@ -1,12 +1,12 @@
 // Headless røgtest af siden: kilo- og literpris, flerpak, sammenligning, tal på dansk, fanen i linket,
-// genindlæsning, mørk tilstand og telefonbredde. Kræver Playwright med Chromium. Kør fra repo-roden:
+// genindlæsning, mørk tilstand, telefonbredde og brug uden net (service worker). Kræver Playwright
+// med Chromium. Kør fra repo-roden:
 //   node tests/side.test.mjs                 # starter selv en lokal server på en ledig port
 //   UD=/tmp/skaerm node tests/side.test.mjs  # skriver også skærmbilleder (lys/mørk) til mappen
 import { createRequire } from 'module';
-import { spawn } from 'child_process';
+import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import net from 'net';
 const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch (e) { pw = createRequire('/opt/node-tools/node_modules/')('playwright'); } // repoet har ingen node_modules; i cloud-miljøet ligger Playwright globalt dér
 const { chromium } = pw;
@@ -16,10 +16,25 @@ if (UD) fs.mkdirSync(UD, { recursive: true });
 
 let antalFejl = 0;
 const ok = (c, m) => { console.log((c ? '✓ ' : '✗ ') + m); if (!c) antalFejl++; };
-const port = await new Promise(r => { const s = net.createServer(); s.listen(0, () => { const p = s.address().port; s.close(() => r(p)); }); });
-const srv = spawn('python3', ['-m', 'http.server', String(port), '--bind', '127.0.0.1'], { cwd: ROOT, stdio: 'ignore' });
-await new Promise(r => setTimeout(r, 800));
-const URL0 = `http://127.0.0.1:${port}/`;
+
+// Egen lille server, så testen kan efterligne et net, der hænger, og en ny udgave af siden.
+const TYPER = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
+let haeng = false, nyUdgave = false;
+const srv = http.createServer((req, res) => {
+  if (haeng) return;   // svarer aldrig, som én streg dækning i butikken
+  let f = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (f.endsWith('/')) f += 'index.html';
+  const fil = path.join(ROOT, path.normalize(f));
+  if (!fil.startsWith(ROOT + path.sep)) return res.writeHead(403).end();
+  fs.readFile(fil, (err, data) => {
+    if (err) return res.writeHead(404).end();
+    if (nyUdgave && fil.endsWith('index.html')) data = String(data).replace('<h1>Kilopris</h1>', '<h1>Kilopris (ny)</h1>');
+    res.writeHead(200, { 'Content-Type': TYPER[path.extname(fil)] || 'application/octet-stream', 'Cache-Control': 'max-age=600' });
+    res.end(data);
+  });
+});
+await new Promise(r => srv.listen(0, '127.0.0.1', r));
+const URL0 = `http://127.0.0.1:${srv.address().port}/`;
 const browser = await chromium.launch();
 const tekst = async l => (await l.innerText()).replace(/\s+/g, ' ');
 try {
@@ -99,9 +114,47 @@ try {
     ok(errs.length === 0, 'ingen fejl i konsollen' + (errs.length ? ': ' + errs.join(' | ') : ''));
     await ctx.close();
   }
+
+  // Uden net: første besøg gemmer siden; derefter skal den åbne uden net, ved et net der hænger,
+  // og en ny udgave skal stadig komme frem, når der er net igen.
+  console.log('— uden net (service worker)');
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, locale: 'da-DK' });
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto(URL0);
+  await p.waitForFunction(() => document.getElementById('offline').classList.contains('klar'), null, { timeout: 10000 }).catch(() => {});
+  ok(await tekst(p.locator('#offline')) === '✓ Gemt på telefonen – virker også uden net.', 'sidefoden melder klar til brug uden net');
+
+  await ctx.setOffline(true);
+  await p.reload();
+  ok(await tekst(p.locator('h1')) === 'Kilopris', 'siden åbner uden net');
+  await p.locator('[data-felt=pris]').fill('24,95');
+  await p.locator('[data-felt=maengde]').fill('400');
+  ok(await tekst(p.locator('.tal')) === '62,38 kr. pr. kg', 'og regner uden net');
+  await p.goto(URL0 + 'index.html#liter');
+  ok(await p.locator('#fane-vol').getAttribute('aria-selected') === 'true', 'index.html og #liter åbner også uden net');
+  ok(await p.evaluate(async () => !!(await caches.match('icon-180.png'))), 'ikonet til hjemmeskærmen er gemt');
+  await ctx.setOffline(false);
+
+  haeng = true;
+  const t0 = Date.now();
+  await p.goto(URL0);
+  const ms = Date.now() - t0;
+  ok(await tekst(p.locator('h1')) === 'Kilopris' && ms < 1500, `siden åbner straks, når nettet hænger (${ms} ms)`);
+  haeng = false;
+  srv.closeAllConnections();   // nettet kommer igen: de hængende forbindelser afbrydes
+
+  nyUdgave = true;
+  await p.reload();   // viser den gemte kopi og henter den nye i baggrunden
+  await p.waitForFunction(async () => (await (await caches.match('./')).text()).includes('Kilopris (ny)'), null, { timeout: 10000 }).catch(() => {});
+  await p.reload();
+  ok(await tekst(p.locator('h1')) === 'Kilopris (ny)', 'en ny udgave vises ved næste åbning');
+  ok(errs.length === 0, 'ingen fejl i konsollen' + (errs.length ? ': ' + errs.join(' | ') : ''));
+  await ctx.close();
 } finally {
   await browser.close();
-  srv.kill();
+  srv.closeAllConnections();
+  srv.close();
 }
 console.log(antalFejl ? `${antalFejl} fejl` : 'Alt i orden');
 process.exit(antalFejl ? 1 : 0);

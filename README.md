@@ -21,16 +21,26 @@ hovedet.
   til en anden app, men ikke til næste indkøbstur. Den valgte fane huskes.
   **Ryd** nulstiller den viste fane.
 
-Siden virker uden net, når den har været åbnet én gang, og kan lægges på
-hjemmeskærmen som en app (iPhone: Safari → Del → *Føj til hjemmeskærm*;
-Android: Chrome → ⋮ → *Installer app* / *Føj til startskærm*).
+## Uden net
+
+Første gang siden åbnes med net, gemmer service workeren (`sw.js`) hele siden
+på telefonen. Derefter åbnes den altid fra telefonens kopi, med det samme og
+også uden net eller med dårlig dækning, og sidefoden viser *✓ Gemt på
+telefonen – virker også uden net*. Er der net, hentes en eventuel ny udgave i
+baggrunden og vises næste gang, siden åbnes.
+
+Brug den helst fra hjemmeskærmen (iPhone: Safari → Del → *Føj til
+hjemmeskærm*; Android: Chrome → ⋮ → *Installer app* / *Føj til startskærm*),
+og åbn den derfra én gang, mens der er net. På iPhone har hjemmeskærms-appen
+sin egen lagerplads, adskilt fra Safari, og Safari kan slette gemte data for
+et websted, man ikke har brugt i 7 dage; hjemmeskærms-appen er ikke omfattet.
 
 ## Filer
 
 | Fil | Indhold |
 | --- | --- |
 | `index.html` | Hele siden: CSS, HTML og JavaScript. Intet byggetrin. |
-| `sw.js` | Service worker: net først (højst 3 s), ellers cachen. |
+| `sw.js` | Service worker: gemmer siden på telefonen, åbner fra kopien og henter nyt i baggrunden. |
 | `manifest.webmanifest`, `icon-*.png` | Til “Føj til hjemmeskærm”. |
 | `.nojekyll` | Får GitHub Pages til at udgive filerne, som de er. |
 | `tests/side.test.mjs` | Headless røgtest (Playwright/Chromium). |
@@ -42,9 +52,10 @@ GitHub Pages udgiver `main` direkte. Slås til én gang i repoets
 *Branch: `main`*, mappe `/ (root)`. Ændringer slår igennem efter et par
 minutter.
 
-Service workeren henter altid siden fra nettet først, så en ny udgave vises
-ved næste besøg uden versionsbump. Tilføjes en fil, siden skal bruge uden net,
-skal den med i `FILER` i `sw.js`.
+Service workeren viser telefonens gemte kopi og henter en ny udgave i
+baggrunden, så en ændring ses anden gang, siden åbnes efter udgivelsen; der
+skal ikke bumpes en version. Tilføjes en fil, siden skal bruge uden net, skal
+den med i `FILER` i `sw.js`; bump `CACHE`, hvis en fil fjernes eller omdøbes.
 
 ## Lokal test
 
